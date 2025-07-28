@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kästchen-Zeichenblatt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      max-width: 794px;
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 6px 12px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    button.active {
+      background-color: #28a745 !important;
+    }
+
+    #canvasWrapper {
+      border: 3px solid red;
+      width: 100%;
+      max-width: 794px;
+      aspect-ratio: 210 / 297;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    label {
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+
+    @media (max-width: 500px) {
+      button, select, input[type="color"] {
+        font-size: 16px;
+        padding: 10px;
+      }
+
+      .control-group {
+        width: 100%;
+      }
+
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <div class="control-group">
+      <label for="colorPicker">Farbe:</label>
+      <input type="color" id="colorPicker" value="#ff0000">
+    </div>
+    <div class="control-group">
+      <label for="gridSize">Kästchen (mm):</label>
+      <select id="gridSize">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="brushSize">Stiftgröße:</label>
+      <select id="brushSize">
+        <option value="1">1x1</option>
+        <option value="2">2x2</option>
+        <option value="3">3x3</option>
+        <option value="4">4x4</option>
+      </select>
+    </div>
+    <button id="downloadBtn">Bild herunterladen</button>
+    <button id="eraserBtn">Radierer</button>
+    <button id="clearBtn">Alles löschen</button>
+  </div>
+
+  <div id="canvasWrapper">
+    <canvas id="drawingCanvas" width="794" height="1123"></canvas>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("drawingCanvas");
+    const ctx = canvas.getContext("2d");
+    const gridSizeSelect = document.getElementById("gridSize");
+    const brushSizeSelect = document.getElementById("brushSize");
+    const colorPicker = document.getElementById("colorPicker");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const eraserBtn = document.getElementById("eraserBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    let gridSize = parseInt(gridSizeSelect.value) * 3.78;
+    let brushSize = parseInt(brushSizeSelect.value);
+    let filledCells = {};
+    let eraserMode = false;
+
+    function drawGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#ccc";
+      ctx.lineWidth = 0.5;
+
+      for (let x = 0; x < canvas.width; x += gridSize) {
+        for (let y = 0; y < canvas.height; y += gridSize) {
+          ctx.strokeRect(x, y, gridSize, gridSize);
+        }
+      }
+
+      for (const key in filledCells) {
+        const [x, y] = key.split(",").map(Number);
+        ctx.fillStyle = filledCells[key];
+        ctx.fillRect(x, y, gridSize, gridSize);
+      }
+    }
+
+    function getCellCoordinates(x, y) {
+      const cellX = Math.floor(x / gridSize) * gridSize;
+      const cellY = Math.floor(y / gridSize) * gridSize;
+      return [cellX, cellY];
+    }
+
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const [cellX, cellY] = getCellCoordinates(x, y);
+
+      for (let i = 0; i < brushSize; i++) {
+        for (let j = 0; j < brushSize; j++) {
+          const xCoord = cellX + i * gridSize;
+          const yCoord = cellY + j * gridSize;
+
+          if (xCoord >= canvas.width || yCoord >= canvas.height) continue;
+
+          const key = `${xCoord},${yCoord}`;
+          if (eraserMode) {
+            delete filledCells[key];
+          } else {
+            filledCells[key] = colorPicker.value;
+          }
+        }
+      }
+      drawGrid();
+    });
+
+    gridSizeSelect.addEventListener("change", () => {
+      gridSize = parseInt(gridSizeSelect.value) * 3.78;
+      filledCells = {};
+      drawGrid();
+    });
+
+    brushSizeSelect.addEventListener("change", () => {
+      brushSize = parseInt(brushSizeSelect.value);
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      const exportCanvas = document.createElement("canvas");
+      exportCanvas.width = canvas.width;
+      exportCanvas.height = canvas.height;
+      const exportCtx = exportCanvas.getContext("2d");
+
+      exportCtx.fillStyle = "#ffffff";
+      exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+      exportCtx.strokeStyle = "#ccc";
+      exportCtx.lineWidth = 0.5;
+      for (let x = 0; x < exportCanvas.width; x += gridSize) {
+        for (let y = 0; y < exportCanvas.height; y += gridSize) {
+          exportCtx.strokeRect(x, y, gridSize, gridSize);
+        }
+      }
+
+      for (const key in filledCells) {
+        const [x, y] = key.split(",").map(Number);
+        exportCtx.fillStyle = filledCells[key];
+        exportCtx.fillRect(x, y, gridSize, gridSize);
+      }
+
+      const link = document.createElement("a");
+      link.download = "kaestchenblatt.png";
+      link.href = exportCanvas.toDataURL("image/png");
+      link.click();
+    });
+
+    eraserBtn.addEventListener("click", () => {
+      eraserMode = !eraserMode;
+      eraserBtn.classList.toggle("active", eraserMode);
+    });
+
+    clearBtn.addEventListener("click", () => {
+      filledCells = {};
+      drawGrid();
+    });
+
+    drawGrid();
+  </script>
+</body>
+</html>
